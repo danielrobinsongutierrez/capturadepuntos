@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ubicación en Tiempo Real - Puntos de Interés</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 1;
+        }
+        /* Controles superiores */
+        .top-controls {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90%;
+        }
+        /* Controles inferiores */
+        .bottom-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90%;
+        }
+        .btn {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn:hover {
+            background: #3367d6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .btn.active {
+            background: #34a853;
+        }
+        .btn.capture {
+            background: #ea4335;
+        }
+        .btn.capture:hover {
+            background: #d33b2c;
+        }
+        .btn.export {
+            background: #fbbc05;
+        }
+        .btn.export:hover {
+            background: #e0a800;
+        }
+        .btn.settings {
+            background: #673ab7;
+        }
+        .btn.settings:hover {
+            background: #5e35b1;
+        }
+        .status {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            font-size: 14px;
+            display: none;
+            max-width: 80%;
+            text-align: center;
+        }
+        .status.error {
+            background: rgba(244, 67, 54, 0.9);
+            color: white;
+        }
+        .status.success {
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+        }
+        .accuracy {
+            position: fixed;
+            top: 130px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .custom-marker {
+            background-color: #4285f4;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        .captured-marker {
+            background-color: #ea4335;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        .point-counter {
+            position: fixed;
+            top: 130px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            font-weight: bold;
+        }
+        .icon {
+            font-size: 16px;
+        }
+        .permission-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 80%;
+            display: none;
+        }
+        .permission-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .permission-panel p {
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+        .permission-panel .btn {
+            margin: 0 5px;
+        }
+        /* Panel de configuración */
+        .settings-panel {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 85%;
+            max-width: 350px;
+            height: 100vh;
+            background: white;
+            z-index: 3000;
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+            transition: right 0.3s ease;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .settings-panel.active {
+            right: 0;
+        }
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .settings-header h2 {
+            color: #333;
+            font-size: 20px;
+        }
+        .close-settings {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        .settings-section {
+            margin-bottom: 25px;
+        }
+        .settings-section h3 {
+            margin-bottom: 15px;
+            color: #444;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        .option-list {
+            list-style: none;
+        }
+        .option-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .option-item:last-child {
+            border-bottom: none;
+        }
+        .option-name {
+            flex-grow: 1;
+        }
+        .option-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .btn-small {
+            background: #f1f1f1;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #333;
+        }
+        .btn-small:hover {
+            background: #e0e0e0;
+        }
+        .btn-small.delete {
+            color: #d32f2f;
+        }
+        .btn-small.delete:hover {
+            background: #ffebee;
+        }
+        .add-option-form {
+            display: flex;
+            margin-top: 10px;
+        }
+        .add-option-form input {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px 0 0 4px;
+            font-size: 14px;
+        }
+        .add-option-form button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 0 4px 4px 0;
+            padding: 0 12px;
+            cursor: pointer;
+        }
+        /* Modal de captura de puntos */
+        .capture-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 4000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .capture-modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 {
+            color: #333;
+            font-size: 18px;
+        }
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #444;
+            font-size: 14px;
+        }
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .checkbox-item input {
+            margin-right: 5px;
+        }
+        .power-selector {
+            display: none;
+            margin-top: 10px;
+        }
+        .power-selector.active {
+            display: block;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn-cancel {
+            background: #f1f1f1;
+            color: #333;
+        }
+        .btn-cancel:hover {
+            background: #e0e0e0;
+        }
+        .btn-save {
+            background: #4285f4;
+        }
+        .btn-save:hover {
+            background: #3367d6;
+        }
+        /* Estilos para el botón de eliminar en el popup */
+        .popup-delete-btn {
+            background: #ea4335;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 8px;
+            width: 100%;
+            text-align: center;
+        }
+        .popup-delete-btn:hover {
+            background: #d33b2c;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="status" id="status"></div>
+    <div class="accuracy" id="accuracy"></div>
+    <div class="point-counter" id="pointCounter">Puntos: 0</div>
+    
+    <!-- Controles superiores -->
+    <div class="top-controls">
+        <button class="btn" id="toggleTracking">
+            <span class="icon">📍</span> Iniciar Seguimiento
+        </button>
+        <button class="btn export" id="exportExcel">
+            <span class="icon">📊</span> Exportar
+        </button>
+        <button class="btn settings" id="openSettings">
+            <span class="icon">⚙️</span> Configuración
+        </button>
+    </div>
+    
+    <!-- Controles inferiores -->
+    <div class="bottom-controls">
+        <button class="btn" id="centerMap">
+            <span class="icon">🎯</span> Centrar
+        </button>
+        <button class="btn capture" id="capturePoint">
+            <span class="icon">📌</span> Capturar Punto
+        </button>
+    </div>
+    
+    <!-- Panel de permisos -->
+    <div class="permission-panel" id="permissionPanel">
+        <h3>Permiso de Ubicación Requerido</h3>
+        <p>Esta aplicación necesita acceder a tu ubicación para funcionar correctamente. Por favor, habilita el permiso de ubicación en tu dispositivo.</p>
+        <button class="btn" id="requestPermission">Solicitar Permiso</button>
+        <button class="btn" id="cancelPermission">Cancelar</button>
+    </div>
+    <!-- Panel de configuración -->
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <h2>Configuración</h2>
+            <button class="close-settings" id="closeSettings">✕</button>
+        </div>
+        <div class="settings-section">
+            <h3>Tipos de Estructura</h3>
+            <ul class="option-list" id="structureTypesList">
+                <!-- Se llenará dinámicamente -->
+            </ul>
+            <div class="add-option-form">
+                <input type="text" id="newStructureType" placeholder="Agregar nuevo tipo">
+                <button id="addStructureType">+</button>
+            </div>
+        </div>
+        <div class="settings-section">
+            <h3>Tipos de Servicio</h3>
+            <ul class="option-list" id="serviceTypesList">
+                <!-- Se llenará dinámicamente -->
+            </ul>
+            <div class="add-option-form">
+                <input type="text" id="newServiceType" placeholder="Agregar nuevo servicio">
+                <button id="addServiceType">+</button>
+            </div>
+        </div>
+    </div>
+    <!-- Modal de captura de puntos -->
+    <div class="capture-modal" id="captureModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Capturar Punto</h2>
+                <button class="close-modal" id="closeModal">✕</button>
+            </div>
+            <form id="captureForm">
+                <div class="form-group">
+                    <label for="structureType">Tipo de Estructura</label>
+                    <select id="structureType" required>
+                        <option value="">Seleccionar...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Servicios en la Estructura</label>
+                    <div class="checkbox-group" id="servicesCheckboxes">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                </div>
+                <div class="form-group power-selector" id="powerSelector">
+                    <label for="lampPower">Potencia de la lámpara</label>
+                    <select id="lampPower">
+                        <option value="100w">100W</option>
+                        <option value="150w">150W</option>
+                        <option value="200w">200W</option>
+                        <option value="250w">250W</option>
+                        <option value="300w">300W</option>
+                        <option value="350w">350W</option>
+                        <option value="400w">400W</option>
+                        <option value="450w">450W</option>
+                        <option value="500w">500W</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pointNotes">Notas Adicionales</label>
+                    <input type="text" id="pointNotes" placeholder="Información adicional...">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" id="cancelCapture">Cancelar</button>
+                    <button type="submit" class="btn btn-save">Guardar Punto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Variables globales
+        let map;
+        let userMarker;
+        let watchId;
+        let isTracking = false;
+        let accuracyCircle;
+        let capturedPoints = [];
+        let capturedMarkers = [];
+        let permissionRequested = false;
+        // Coordenadas personalizadas
+        const CENTER_LAT = -38.933854442412034;
+        const CENTER_LNG = -69.22953310292844;
+        // Configuración por defecto
+        let structureTypes = [
+            "Poste de madera",
+            "Columna de cemento",
+            "Columna de hierro",
+            "Torre metálica",
+            "Otro"
+        ];
+        let serviceTypes = [
+            "Red eléctrica",
+            "Red de telefonía",
+            "Red de fibra óptica",
+            "Red de video cable",
+            "Alumbrado público",
+            "Otro"
+        ];
+        // Inicializar mapa
+        function initMap() {
+            // Crear mapa con vista inicial en las coordenadas personalizadas
+            map = L.map('map').setView([CENTER_LAT, CENTER_LNG], 16); // Zoom aumentado de 15 a 16
+            // Añadir capa de mapa
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+            // Evento de zoom para ajustar la precisión del círculo
+            map.on('zoomend', updateAccuracyCircle);
+            // Cargar configuración desde localStorage
+            loadConfiguration();
+            // Cargar puntos capturados desde localStorage
+            loadCapturedPoints();
+        }
+        // Mostrar notificación
+        function showStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 3000);
+        }
+        // Actualizar información de precisión
+        function updateAccuracy(position) {
+            const accuracyEl = document.getElementById('accuracy');
+            const accuracy = Math.round(position.coords.accuracy);
+            accuracyEl.textContent = `Precisión: ±${accuracy}m`;
+        }
+        // Actualizar círculo de precisión
+        function updateAccuracyCircle() {
+            if (accuracyCircle && userMarker) {
+                const zoom = map.getZoom();
+                const radius = Math.max(5, 100 / Math.pow(2, zoom - 13));
+                accuracyCircle.setRadius(radius);
+            }
+        }
+        // Actualizar posición del usuario
+        function updateUserPosition(position) {
+            const { latitude, longitude } = position.coords;
+            // Actualizar o crear marcador
+            if (userMarker) {
+                userMarker.setLatLng([latitude, longitude]);
+            } else {
+                // Crear marcador personalizado
+                const customIcon = L.divIcon({
+                    className: 'custom-marker',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                userMarker = L.marker([latitude, longitude], { icon: customIcon }).addTo(map);
+                // Crear círculo de precisión
+                accuracyCircle = L.circle([latitude, longitude], {
+                    radius: 100,
+                    fillColor: '#4285f4',
+                    color: '#4285f4',
+                    fillOpacity: 0.2,
+                    weight: 1
+                }).addTo(map);
+                // Centrar mapa en la posición inicial
+                map.setView([latitude, longitude], 16); // Zoom aumentado de 15 a 16
+            }
+            // Actualizar círculo de precisión
+            if (accuracyCircle) {
+                accuracyCircle.setLatLng([latitude, longitude]);
+                updateAccuracyCircle();
+            }
+            // Actualizar información de precisión
+            updateAccuracy(position);
+        }
+        // Manejar errores de geolocalización
+        function handleGeolocationError(error) {
+            let errorMessage = '';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = "Permiso de ubicación denegado. Por favor, activa la ubicación en la configuración de tu dispositivo.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = "Información de ubicación no disponible. Verifica tu conexión y el GPS.";
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = "Tiempo de espera agotado. Intenta nuevamente.";
+                    break;
+                default:
+                    errorMessage = "Error desconocido al obtener la ubicación.";
+                    break;
+            }
+            showStatus(errorMessage, 'error');
+            stopTracking();
+        }
+        // Iniciar seguimiento
+        function startTracking() {
+            if (!navigator.geolocation) {
+                showStatus("Geolocalización no soportada", 'error');
+                return;
+            }
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 10000, // Aumentado el timeout
+                maximumAge: 0
+            };
+            watchId = navigator.geolocation.watchPosition(
+                updateUserPosition,
+                handleGeolocationError,
+                options
+            );
+            isTracking = true;
+            document.getElementById('toggleTracking').innerHTML = '<span class="icon">⏹️</span> Detener Seguimiento';
+            document.getElementById('toggleTracking').classList.add('active');
+            showStatus("Seguimiento activado", 'success');
+        }
+        // Detener seguimiento
+        function stopTracking() {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            isTracking = false;
+            document.getElementById('toggleTracking').innerHTML = '<span class="icon">📍</span> Iniciar Seguimiento';
+            document.getElementById('toggleTracking').classList.remove('active');
+            showStatus("Seguimiento detenido");
+        }
+        // Centrar mapa en la posición actual
+        function centerMapOnUser() {
+            if (userMarker) {
+                map.setView(userMarker.getLatLng(), map.getZoom());
+            } else {
+                showStatus("Esperando ubicación...", 'info');
+            }
+        }
+        // Cargar configuración desde localStorage
+        function loadConfiguration() {
+            const savedStructureTypes = localStorage.getItem('structureTypes');
+            const savedServiceTypes = localStorage.getItem('serviceTypes');
+            if (savedStructureTypes) {
+                structureTypes = JSON.parse(savedStructureTypes);
+            }
+            if (savedServiceTypes) {
+                serviceTypes = JSON.parse(savedServiceTypes);
+            }
+            updateConfigurationUI();
+        }
+        // Guardar configuración en localStorage
+        function saveConfiguration() {
+            localStorage.setItem('structureTypes', JSON.stringify(structureTypes));
+            localStorage.setItem('serviceTypes', JSON.stringify(serviceTypes));
+            updateConfigurationUI();
+            showStatus("Configuración guardada", 'success');
+        }
+        // Actualizar UI de configuración
+        function updateConfigurationUI() {
+            // Actualizar lista de tipos de estructura
+            const structureList = document.getElementById('structureTypesList');
+            structureList.innerHTML = '';
+            structureTypes.forEach((type, index) => {
+                const li = document.createElement('li');
+                li.className = 'option-item';
+                li.innerHTML = `
+                    <span class="option-name">${type}</span>
+                    <div class="option-actions">
+                        <button class="btn-small delete" data-index="${index}" data-type="structure">Eliminar</button>
+                    </div>
+                `;
+                structureList.appendChild(li);
+            });
+            // Actualizar lista de tipos de servicio
+            const serviceList = document.getElementById('serviceTypesList');
+            serviceList.innerHTML = '';
+            serviceTypes.forEach((service, index) => {
+                const li = document.createElement('li');
+                li.className = 'option-item';
+                li.innerHTML = `
+                    <span class="option-name">${service}</span>
+                    <div class="option-actions">
+                        <button class="btn-small delete" data-index="${index}" data-type="service">Eliminar</button>
+                    </div>
+                `;
+                serviceList.appendChild(li);
+            });
+            // Actualizar opciones en el modal de captura
+            updateCaptureModalOptions();
+        }
+        // Actualizar opciones en el modal de captura
+        function updateCaptureModalOptions() {
+            // Actualizar select de tipos de estructura
+            const structureSelect = document.getElementById('structureType');
+            structureSelect.innerHTML = '<option value="">Seleccionar...</option>';
+            structureTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                structureSelect.appendChild(option);
+            });
+            // Actualizar checkboxes de servicios
+            const servicesContainer = document.getElementById('servicesCheckboxes');
+            servicesContainer.innerHTML = '';
+            serviceTypes.forEach(service => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-item';
+                label.innerHTML = `
+                    <input type="checkbox" name="services" value="${service}">
+                    ${service}
+                `;
+                servicesContainer.appendChild(label);
+            });
+        }
+        // Capturar punto actual
+        function captureCurrentPoint() {
+            if (!userMarker) {
+                showStatus("No hay ubicación disponible", 'error');
+                return;
+            }
+            // Mostrar modal de captura
+            document.getElementById('captureModal').classList.add('active');
+        }
+        // Guardar punto capturado
+        function saveCapturedPoint(event) {
+            event.preventDefault();
+            const position = userMarker.getLatLng();
+            const timestamp = new Date().toLocaleString('es-AR');
+            const structureType = document.getElementById('structureType').value;
+            const notes = document.getElementById('pointNotes').value;
+            // Obtener servicios seleccionados
+            const servicesCheckboxes = document.querySelectorAll('input[name="services"]:checked');
+            const services = Array.from(servicesCheckboxes).map(cb => cb.value);
+            
+            // Verificar si se seleccionó Alumbrado público y obtener potencia
+            let lampPower = '';
+            if (services.includes('Alumbrado público')) {
+                lampPower = document.getElementById('lampPower').value;
+            }
+            
+            if (!structureType) {
+                showStatus("Debes seleccionar un tipo de estructura", 'error');
+                return;
+            }
+            // Crear objeto de punto
+            const point = {
+                id: Date.now(),
+                lat: position.lat.toFixed(6),
+                lng: position.lng.toFixed(6),
+                timestamp: timestamp,
+                structureType: structureType,
+                services: services,
+                lampPower: lampPower,
+                notes: notes
+            };
+            // Agregar a la lista de puntos
+            capturedPoints.push(point);
+            // Guardar en localStorage
+            localStorage.setItem('capturedPoints', JSON.stringify(capturedPoints));
+            // Crear marcador en el mapa
+            const capturedIcon = L.divIcon({
+                className: 'captured-marker',
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+            const marker = L.marker([position.lat, position.lng], { icon: capturedIcon })
+                .addTo(map)
+                .bindPopup(createPopupContent(point));
+            capturedMarkers.push({marker, id: point.id});
+            // Actualizar contador
+            updatePointCounter();
+            // Cerrar modal y limpiar formulario
+            document.getElementById('captureModal').classList.remove('active');
+            document.getElementById('captureForm').reset();
+            // Ocultar selector de potencia
+            document.getElementById('powerSelector').classList.remove('active');
+            showStatus(`Punto #${capturedPoints.length} capturado`, 'success');
+        }
+        // Crear contenido del popup para un punto
+        function createPopupContent(point) {
+            let content = `
+                <b>${point.structureType}</b><br>
+                <small>Lat: ${point.lat} | Lng: ${point.lng}</small><br>
+                <small>Fecha: ${point.timestamp}</small><br>
+            `;
+            
+            if (point.services && point.services.length > 0) {
+                content += `<small>Servicios: ${point.services.join(', ')}</small><br>`;
+                
+                // Si tiene Alumbrado público, mostrar la potencia
+                if (point.services.includes('Alumbrado público') && point.lampPower) {
+                    content += `<small>Potencia lámpara: ${point.lampPower}</small><br>`;
+                }
+            }
+            
+            if (point.notes) {
+                content += `<small>Notas: ${point.notes}</small><br>`;
+            }
+            
+            content += `<button class="popup-delete-btn" data-point-id="${point.id}">Eliminar Punto</button>`;
+            
+            return content;
+        }
+        // Eliminar punto capturado
+        function deleteCapturedPoint(pointId) {
+            // Buscar el punto en el array
+            const pointIndex = capturedPoints.findIndex(point => point.id == pointId);
+            if (pointIndex === -1) return;
+            
+            // Eliminar el punto del array
+            capturedPoints.splice(pointIndex, 1);
+            
+            // Actualizar localStorage
+            localStorage.setItem('capturedPoints', JSON.stringify(capturedPoints));
+            
+            // Buscar y eliminar el marcador del mapa
+            const markerIndex = capturedMarkers.findIndex(item => item.id == pointId);
+            if (markerIndex !== -1) {
+                map.removeLayer(capturedMarkers[markerIndex].marker);
+                capturedMarkers.splice(markerIndex, 1);
+            }
+            
+            // Actualizar contador
+            updatePointCounter();
+            
+            // Mostrar confirmación
+            showStatus("Punto eliminado correctamente", 'success');
+        }
+        // Actualizar contador de puntos
+        function updatePointCounter() {
+            document.getElementById('pointCounter').textContent = `Puntos: ${capturedPoints.length}`;
+        }
+        // Cargar puntos capturados desde localStorage
+        function loadCapturedPoints() {
+            const savedPoints = localStorage.getItem('capturedPoints');
+            if (savedPoints) {
+                capturedPoints = JSON.parse(savedPoints);
+                // Recrear marcadores en el mapa
+                capturedPoints.forEach(point => {
+                    const capturedIcon = L.divIcon({
+                        className: 'captured-marker',
+                        iconSize: [16, 16],
+                        iconAnchor: [8, 8]
+                    });
+                    const marker = L.marker([point.lat, point.lng], { icon: capturedIcon })
+                        .addTo(map)
+                        .bindPopup(createPopupContent(point));
+                    capturedMarkers.push({marker, id: point.id});
+                });
+                updatePointCounter();
+            }
+        }
+        // Exportar puntos a Excel
+        function exportToExcel() {
+            if (capturedPoints.length === 0) {
+                showStatus("No hay puntos para exportar", 'error');
+                return;
+            }
+            // Preparar datos para Excel
+            const excelData = capturedPoints.map((point, index) => ({
+                '#': index + 1,
+                'Latitud': point.lat,
+                'Longitud': point.lng,
+                'Fecha/Hora': point.timestamp,
+                'Tipo de Estructura': point.structureType,
+                'Servicios': point.services ? point.services.join(', ') : '',
+                'Potencia Lámpara': point.lampPower || '',
+                'Notas': point.notes || ''
+            }));
+            // Crear libro de Excel
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            // Ajustar ancho de columnas
+            const colWidths = [
+                { wch: 5 },   // #
+                { wch: 12 },  // Latitud
+                { wch: 12 },  // Longitud
+                { wch: 20 },  // Fecha/Hora
+                { wch: 20 },  // Tipo de Estructura
+                { wch: 30 },  // Servicios
+                { wch: 15 },  // Potencia Lámpara
+                { wch: 30 }   // Notas
+            ];
+            ws['!cols'] = colWidths;
+            // Agregar hoja al libro
+            XLSX.utils.book_append_sheet(wb, ws, "Puntos Capturados");
+            // Generar archivo y descargar
+            const fileName = `Puntos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            showStatus(`Exportados ${capturedPoints.length} puntos a Excel`, 'success');
+        }
+        // Solicitar permiso de ubicación
+        function requestLocationPermission() {
+            document.getElementById('permissionPanel').style.display = 'block';
+            permissionRequested = true;
+        }
+        // Event Listeners
+        document.getElementById('toggleTracking').addEventListener('click', function() {
+            if (isTracking) {
+                stopTracking();
+            } else {
+                // Verificar si ya se solicitaron permisos
+                if (!permissionRequested) {
+                    requestLocationPermission();
+                    return;
+                }
+                // Intentar obtener la posición actual primero
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        // Si se obtiene la posición, actualizamos y comenzamos el seguimiento
+                        updateUserPosition(position);
+                        startTracking();
+                    },
+                    function(error) {
+                        handleGeolocationError(error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            }
+        });
+        document.getElementById('centerMap').addEventListener('click', centerMapOnUser);
+        document.getElementById('capturePoint').addEventListener('click', captureCurrentPoint);
+        document.getElementById('exportExcel').addEventListener('click', exportToExcel);
+        // Eventos del panel de permisos
+        document.getElementById('requestPermission').addEventListener('click', function() {
+            document.getElementById('permissionPanel').style.display = 'none';
+            // Solicitar permiso explícitamente
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    updateUserPosition(position);
+                    startTracking();
+                },
+                function(error) {
+                    handleGeolocationError(error);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        });
+        document.getElementById('cancelPermission').addEventListener('click', function() {
+            document.getElementById('permissionPanel').style.display = 'none';
+            showStatus("Permiso de ubicación denegado", 'error');
+        });
+        // Eventos del panel de configuración
+        document.getElementById('openSettings').addEventListener('click', function() {
+            document.getElementById('settingsPanel').classList.add('active');
+        });
+        document.getElementById('closeSettings').addEventListener('click', function() {
+            document.getElementById('settingsPanel').classList.remove('active');
+        });
+        // Eventos para agregar tipos de estructura y servicios
+        document.getElementById('addStructureType').addEventListener('click', function() {
+            const input = document.getElementById('newStructureType');
+            const value = input.value.trim();
+            if (value && !structureTypes.includes(value)) {
+                structureTypes.push(value);
+                input.value = '';
+                saveConfiguration();
+            }
+        });
+        document.getElementById('addServiceType').addEventListener('click', function() {
+            const input = document.getElementById('newServiceType');
+            const value = input.value.trim();
+            if (value && !serviceTypes.includes(value)) {
+                serviceTypes.push(value);
+                input.value = '';
+                saveConfiguration();
+            }
+        });
+        // Eventos para eliminar tipos de estructura y servicios
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete')) {
+                const index = parseInt(e.target.dataset.index);
+                const type = e.target.dataset.type;
+                if (type === 'structure') {
+                    structureTypes.splice(index, 1);
+                } else if (type === 'service') {
+                    serviceTypes.splice(index, 1);
+                }
+                saveConfiguration();
+            }
+        });
+        // Eventos del modal de captura
+        document.getElementById('closeModal').addEventListener('click', function() {
+            document.getElementById('captureModal').classList.remove('active');
+            document.getElementById('captureForm').reset();
+            document.getElementById('powerSelector').classList.remove('active');
+        });
+        document.getElementById('cancelCapture').addEventListener('click', function() {
+            document.getElementById('captureModal').classList.remove('active');
+            document.getElementById('captureForm').reset();
+            document.getElementById('powerSelector').classList.remove('active');
+        });
+        document.getElementById('captureForm').addEventListener('submit', saveCapturedPoint);
+        
+        // Evento para mostrar/ocultar selector de potencia
+        document.addEventListener('change', function(e) {
+            if (e.target.type === 'checkbox' && e.target.name === 'services') {
+                const powerSelector = document.getElementById('powerSelector');
+                const publicLightingChecked = document.querySelector('input[name="services"][value="Alumbrado público"]').checked;
+                
+                if (publicLightingChecked) {
+                    powerSelector.classList.add('active');
+                } else {
+                    powerSelector.classList.remove('active');
+                }
+            }
+        });
+        
+        // Evento para eliminar puntos (delegación de eventos)
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('popup-delete-btn')) {
+                const pointId = e.target.dataset.pointId;
+                if (confirm('¿Estás seguro de que quieres eliminar este punto?')) {
+                    deleteCapturedPoint(pointId);
+                }
+            }
+        });
+        
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            showStatus("Presiona 'Iniciar Seguimiento' para activar la ubicación", 'info');
+        });
+        // Optimizar para móviles
+        if ('ontouchstart' in window) {
+            document.addEventListener('touchmove', function(e) {
+                if (e.scale !== 1) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        }
+    </script>
+</body>
+</html>
