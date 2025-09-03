@@ -561,11 +561,11 @@
         // Inicializar mapa
         function initMap() {
             // Crear mapa con vista inicial en las coordenadas personalizadas
-            map = L.map('map').setView([CENTER_LAT, CENTER_LNG], 16); // Zoom aumentado de 15 a 16
+            map = L.map('map').setView([CENTER_LAT, CENTER_LNG], 19);
             // Añadir capa de mapa
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                maxZoom: 19
+                maxZoom: 20
             }).addTo(map);
             // Evento de zoom para ajustar la precisión del círculo
             map.on('zoomend', updateAccuracyCircle);
